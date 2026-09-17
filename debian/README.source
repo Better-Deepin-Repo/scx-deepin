@@ -1,0 +1,121 @@
+= scx Debian packaging - build instructions (README.source)
+
+This git repository contains ONLY the C<debian/> directory; the upstream
+source lives in a separate directory (C<scx-1.1.3> in this workspace).
+The packaging directory is dropped into an unpacked copy of the upstream
+source and the package is built with the standard debhelper/dpkg
+toolchain.  Rust crates are fetched during the build by
+C<debian/fetch-vendor.sh> (the builder needs outbound network access for
+this step, as granted on the Better-Deepin OBS instance); the actual
+compilation afterwards is fully offline (see "Rust dependency sourcing").
+
+== Quick build (amd64, builder with network access) ==
+
+Run from the root of this git repository (which holds C<debian/>):
+
+    SRC=/path/to/scx-1.1.3            # upstream source
+    OUT=/tmp/scx-build; mkdir -p $OUT
+    rm -rf $OUT/scx-1.1.3
+    cp -a "$SRC" $OUT/scx-1.1.3
+    cp -a debian $OUT/scx-1.1.3/
+    cd $OUT/scx-1.1.3
+    dpkg-buildpackage -us -uc         # or: debuild / pdebuild / sbuild
+
+The resulting .deb files are written to $OUT:
+I<scx-scheds_1.1.3-1_amd64.deb>, I<scxtop_1.1.3-1_amd64.deb> and their
+I<*-dbgsym> companions.
+
+C<3.0 (quilt)> means C<dpkg-source> wants a matching
+C<scx_1.1.3.orig.tar.gz> next to the tree (the upstream release
+C<.tar.gz> from GitHub renamed accordingly, or C<git archive>).  If you
+only need the binary packages, C<dpkg-buildpackage -d> skips the
+genbuild step and no orig tarball is required at all.
+
+== Rust dependency sourcing ==
+
+B<No librust-*-dev packages are used at all.> C<debian/control> only
+carries the C<Rust toolchain> itself (C<cargo>, C<rustc>,
+C<libstd-rust-dev>) plus the non-Rust libraries; the crates themselves
+are fetched from U<https://crates.io> at build time by a dedicated
+scripted step:
+
+=over
+
+B<1. Pre-fetch (the only network step).>
+L<execute_before_dh_auto_configure|file:///debian/rules> runs
+C<debian/fetch-vendor.sh>, which executes C<cargo vendor
+--versioned-dirs vendor> for the quilt-patched workspace (the member
+pruning keeps the closure minimal and equal to the build graph, ~496
+crates for 1.1.3).  This requires outbound network access, which the
+Better-Deepin OBS builder explicitly permits.
+
+B<2. Offline build.> C<debian/cargo-config.toml> is rendered (with
+C<@VENDOR_DIR@> substituted) into C<$CARGO_HOME/config.toml>, replacing
+the crates-io source with ./vendor and setting C<net.offline = true>.
+The C<cargo build> that follows therefore compiles strictly from the
+just-vendored snapshot - no registry index, no implicit downloads.  The
+upstream project's own C<.cargo/config.toml> (xtask alias) is kept and
+untouched; CARGO_HOME level configuration overrides nothing of it.
+
+B<3. No Built-Using.> Because no crate comes from a Debian crate
+package, the L<Built-Using> / L<Static-Built-Using> fields are absent;
+the exact crate versions are pinned by L<Cargo.lock> and mirrored by the
+C<.cargo-checksum.json> files inside ./vendor.
+
+=back
+
+== Build-dependends ==
+
+The build needs: C<debhelper-compat (= 13)>, C<cargo>, C<rustc> (>= 1.88:
+C<time>, C<sscanf> and C<darling> in Cargo.lock declare rust-version
+1.88, and the lockfile is v4), C<libstd-rust-dev>,
+C<clang> (>= 16, the scx BPF build refuses older clang; on deepin v25
+the B-D is satisfied by the C<clang> metapackage which pulls in
+C<clang>-21/C<clang>-22),
+C<libclang-dev> (bindgen), C<libelf-dev>, C<zlib1g-dev> (vendored libbpf
+inside C<libbpf-sys>), C<libseccomp-dev> (C<seccomp> crate for
+C<scx_rustland_core>) and C<pkg-config>.
+
+No upstream C/C++ build system (C<lib/Makefile>) is invoked; schedulers,
+their BPF objects and bindings are all produced by the C<cargo build>
+build scripts.
+
+== Excluded workspace members ==
+
+By default C<xtask> (release helper), C<vmlinux_docify> (build-time doc
+tool), C<scx_forge_agent> (optional scheduler-management web agent, pulls
+reqwest/openssl-sys/aws-lc-sys + cmake) and C<scx_mitosis> (pulls the
+same transitive stack through ktstr/gix) are removed from the workspace
+members by C<debian/patches/prune-unshipped-members.patch>, so they are
+neither built nor vendored and C<cmake> / C<libssl-dev> are not required
+on the build host.  To include them, drop that patch from
+C<debian/patches/series>, add the extra binaries to the install lists in
+C<debian/rules>; the crate closure grows automatically on the next
+vendor step.  C<cmake> and C<libssl-dev> must then also be installed,
+and the build takes noticeably longer.
+
+== Tests ==
+
+C<cargo test> is skipped: the upstream test suites load BPF programs
+into the running kernel and cannot pass on build daemons.  A CLI smoke
+test is shipped as an autopkgtest (C<debian/tests/control>).
+
+== Cross-building / architectures ==
+
+C<debian/rules> passes C<--target $(DEB_HOST_RUST_TYPE)> explicitly to
+cargo (C<include /usr/share/rustc/architecture.mk> provides the triple);
+cross toolchains (C<clang>, C<libclang-dev> of the foreign arch) are
+needed.  loongarch64 is
+deliberately absent from the C<Architecture:> lists because
+L<rust/scx_utils/vmlinux.tar.zst> only ships x86/arm/arm64/mips/powerpc/
+riscv/s390 BTF headers, so building BPF objects is impossible there.
+
+== Upstream version updates ==
+
+Refresh C<debian/changelog> (upstream version in the first column) and
+rename/unpack the source accordingly; C<debian/watch> (version 5, GitHub
+template) downloads the new release for C<uscan>.  The crate closure is
+re-vendored by C<debian/rules> automatically on the next build
+(C<./debian/fetch-vendor.sh> can also be run manually once in the
+combined tree to warm up or inspect it); nothing is vendored in this git
+repository and no extra orig tarball is to be distributed.

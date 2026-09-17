@@ -1,0 +1,59 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: scx
+Upstream-Contact: sched-ext community <https://github.com/sched-ext/scx>
+Source: https://github.com/sched-ext/scx
+
+Files: *
+Copyright: 2022-2026 Meta Platforms, Inc.
+ 2022-2026 sched-ext contributors
+ (Andrea Righi <andrea.righi@linux.dev>, Tejun Heo <tj@kernel.org>,
+  David Vreetedt, Dan Schatzberg, Emil Teller, Yuxan Hong, and others)
+License: GPL-2.0-only
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by the
+ Free Software Foundation; version 2.
+ .
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License along
+ with this program; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+Files: scheds/include/*
+ lib/*
+ rust/scx_utils/vmlinux.h
+Copyright: the respective Linux kernel and libbpf authors
+License: GPL-2.0-or-BSD AND LGPL-2.1-or-BSD AND Linux-syscall-note
+ Contains vendored BPF headers from the Linux kernel and libbpf. Each
+ file is covered by its own SPDX header, which includes at least:
+  * "GPL-2.0-only OR BSD-2-Clause" and
+    "LGPL-2.1 OR BSD-2-Clause" combinations, and
+  * the "Linux-syscall-note" exception when used with BPF objects.
+ The built schedulers are distributed under GPL-2.0-only; the BSD-2
+ and LGPL alternatives above additionally allow reuse under those
+ terms.
+
+Files: debian/*
+Copyright: 2026 LFRon <ronforever@outlook.com>
+License: GPL-2.0-only
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by the
+ Free Software Foundation; version 2.
+ .
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License along
+ with this program; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 2 can be found in "/usr/share/common-licenses/GPL-2".

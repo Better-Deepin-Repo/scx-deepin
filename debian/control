@@ -1,0 +1,58 @@
+Source: scx
+Section: admin
+Priority: optional
+Maintainer: LFRon <ronforever@outlook.com>
+Build-Depends: debhelper-compat (= 13)
+Build-Depends-Arch:
+ cargo:native <!nocheck>,
+ rustc:native (>= 1.88) <!nocheck>,
+ libstd-rust-dev <!nocheck>,
+ clang <!nocheck>,
+ libclang-dev <!nocheck>,
+ libelf-dev <!nocheck>,
+ libseccomp-dev <!nocheck>,
+ zlib1g-dev <!nocheck>,
+ pkg-config <!nocheck>
+Standards-Version: 4.7.3
+Homepage: https://github.com/sched-ext/scx
+Rules-Requires-Root: no
+
+Package: scx-scheds
+Architecture: amd64 i386 arm64 armel armhf mips64el mipsel ppc64el riscv64 s390x
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Suggests: scxtop, scx-loader
+Description: sched-ext (scx) CPU schedulers for Linux
+ The scx repository contains a collection of extensible CPU schedulers
+ built on top of the Linux kernel sched_ext BPF framework.  Schedulers
+ run in user space on top of BPF programs and can be hot-swapped at
+ runtime without reloading the kernel.
+ .
+ This package ships the pre-built schedulers, among them:
+  * scx_bpfland, a vruntime-based scheduler prioritizing interactive
+    workloads;
+  * scx_rusty, a user-space layered scheduling scheduler;
+  * scx_lavd & scx_p2dq, latency and partition-aware work-stealing
+    schedulers;
+  * scx_rustland, a fully user-space controlled scheduler;
+  * scx_layered and a handful of further experimental schedulers.
+ .
+ It also installs the scx.service systemd unit which loads the
+ scheduler selected in /etc/default/scx at boot (only when the kernel
+ provides /sys/kernel/sched_ext).
+
+Package: scxtop
+Architecture: amd64 i386 arm64 armel armhf mips64el mipsel ppc64el riscv64 s390x
+Section: utils
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Suggests: scx-scheds
+Built-Using: ${cargo:Built-Using}
+Static-Built-Using: ${cargo:Static-Built-Using}
+Description: Top-like observability tool for sched-ext and Linux CPUs
+ scxtop is a live TUI that samples BPF scheduling statistics and
+ reports per-cpu, per-cgroup, per-scheduler and per-process metrics,
+ similar to htop/top for the sched_ext subsystem.  It can also export
+ data in JSON and perfetto trace formats.

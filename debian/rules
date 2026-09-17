@@ -1,0 +1,96 @@
+#!/usr/bin/make -f
+# Copyright (C) 2026 LFRon <ronforever@outlook.com>
+# Released under the GNU General Public License version 2 or later.
+#
+# Cargo workspace application package of the sched-ext "scx" project.
+# Follows the "manual wrapper approach" from the Debian Rust Team book:
+#   https://rust-team.pages.debian.net/book/process-workspace.html
+# The BPF (C via clang + bindgen) part of the build is driven by each
+# crate's build.rs (rust/scx_cargo -> libbpf-cargo / bindgen / clang),
+# so the single Cargo build below is the whole build system; debhelper
+# stays generic.
+#
+# Rust dependency sourcing (Better Deepin scheme):
+#   debian/control deliberately carries no crate (librust-*-dev) build
+#   dependencies.  Instead, the configure step runs debian/fetch-vendor.sh,
+#   which downloads every crate pinned by Cargo.lock from crates.io into
+#   ./vendor - the single, explicitly scripted online step of the build
+#   (the Better-Deepin OBS builder allows network access at build time).
+#   debian/cargo-config.toml is then rendered into $CARGO_HOME/config.toml
+#   (the upstream .cargo/config.toml with its own aliases stays untouched),
+#   replacing crates-io with ./vendor and setting [net] offline, so the
+#   actual `cargo build` resolves and compiles fully offline and never
+#   touches the network.  Crate sources come from crates.io, not from
+#   Debian packages, hence no Built-Using / Static-Built-Using is recorded.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/default.mk
+include /usr/share/rustc/architecture.mk
+
+SPKG = scx-scheds
+TPKG = scxtop
+
+# The workspace members xtask, vmlinux_docify, scx_forge_agent and
+# scx_mitosis are pruned from the workspace at source level by
+# debian/patches/prune-unshipped-members.patch (they are development
+# helpers or drag in reqwest/gix/ktstr - openssl-sys, aws-lc-sys + cmake;
+# see debian/README.source).  Hence `cargo build --workspace` needs no
+# --exclude list here; with the patch dropped, debian/fetch-vendor.sh
+# simply pulls the bigger closure automatically.
+
+# Scheduler/tool binaries installed into $(SPKG):/usr/bin.
+SCHEDULERS := scx_beerland scx_bpfland scx_cake scx_chaos scx_cosmos \
+              scx_flash scx_forge scx_lavd scx_layered scx_p2dq \
+              scx_pandemonium scx_rustland scx_rusty scx_tickless \
+              scx_flow scx_mlfq scx_rlfifo scx_characterize
+
+# The cc/bindgen parts of the build require dpkg-buildflags variables;
+# tolerate manual debian/rules invocations outside dpkg-buildpackage.
+CFLAGS ?= $(shell dpkg-buildflags --get CFLAGS)
+CXXFLAGS ?= $(shell dpkg-buildflags --get CXXFLAGS)
+CPPFLAGS ?= $(shell dpkg-buildflags --get CPPFLAGS)
+LDFLAGS ?= $(shell dpkg-buildflags --get LDFLAGS)
+export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+
+export DEB_HOST_GNU_TYPE
+export DEB_HOST_RUST_TYPE
+export CARGO_HOME = $(CURDIR)/debian/cargo_home
+
+# Cargo is invoked directly; the target triple keeps the artifact layout
+# predictable for the install step below.
+CARGO_TARGET_DIR = target/$(DEB_HOST_RUST_TYPE)/release
+
+%:
+	dh $@
+
+# The only networked step: script pre-fetch all locked crates into
+# ./vendor, then point cargo's [source.crates-io] replacement at that tree
+# and turn offline mode on for everything that follows.
+execute_before_dh_auto_configure:
+	debian/fetch-vendor.sh
+	mkdir -p $(CARGO_HOME)
+	sed -e 's#@VENDOR_DIR@#$(CURDIR)/vendor#' debian/cargo-config.toml > $(CARGO_HOME)/config.toml
+
+override_dh_auto_build:
+	cargo build --release --target $(DEB_HOST_RUST_TYPE) --workspace
+
+# Upstream tests load BPF schedulers into the running kernel, which is
+# impossible in build daemons; the shipped autopkgtest does a CLI smoke
+# check on the real machines instead.
+override_dh_auto_test:
+	@echo "I: skipping cargo test suite (requires a running sched_ext kernel)"
+
+override_dh_auto_install:
+	# schedulers and their CLI support tools, all into /usr/bin
+	set -e; for b in $(SCHEDULERS); do \
+		install -Dm755 $(CARGO_TARGET_DIR)/$$b $(CURDIR)/debian/$(SPKG)/usr/bin/$$b; \
+	done
+	install -Dm755 $(CARGO_TARGET_DIR)/$(TPKG) $(CURDIR)/debian/$(TPKG)/usr/bin/$(TPKG)
+	# systemd on-load service + its configuration conffile
+	# (dh_installsystemd handles start/stop/enable through [Install])
+	install -Dm644 services/scx.service $(CURDIR)/debian/$(SPKG)/usr/lib/systemd/system/scx.service
+	install -Dm644 services/scx $(CURDIR)/debian/$(SPKG)/etc/default/scx
+
+override_dh_auto_clean:
+	rm -rf target vendor debian/cargo_home debian/cargo_registry
+	rm -f debian/cargo-vendor-overlay debian/cargo-network-fallback

@@ -1,0 +1,7 @@
+Test-Command: scx_bpfland --version && scx_lavd --version && scx_rusty --version && scx_characterize --version
+Depends: scx-scheds
+Restrictions: allow-stderr
+
+Test-Command: scxtop --version
+Depends: scxtop
+Restrictions: allow-stderr
