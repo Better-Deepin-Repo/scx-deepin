@@ -1,3 +1,24 @@
+scx (1.1.3-2) unstable; urgency=medium
+
+  * Rebuild against the updated Better-Deepin scx source (fork of
+    sched-ext/scx v1.1.3), which now carries two scx_lavd commits so the
+    scheduler loads and runs on sched_ext backports that predate the
+    upstream v6.17 cgroup bandwidth ABI (e.g. the Anolis-aligned deepin
+    6.6 backport), without changing behavior on kernels that have the
+    ABI:
+    - Load on kernels without the cgroup bandwidth ABI: bail out of the
+      bandwidth init path before touching struct scx_cgroup_init_args
+      bw_* fields and force-disable --enable-cpu-bw when the ABI is
+      missing, instead of failing the whole BPF object load;
+    - Attach only the futex tracepoints that exist on the running kernel,
+      so futex boost works on x86_64, which lacks the dedicated
+      futex_wait/futex_wake syscall tracepoints that made the previous
+      all-or-nothing helper bail out.
+  * No Debian patches are carried for these changes; kernel sources
+    untouched.
+
+ -- LFRon <ronforever@outlook.com>  Sat, 11 Oct 2026 20:05:00 +0800
+
 scx (1.1.3-1) unstable; urgency=medium
 
   * Initial Debian packaging of the sched-ext scx scheduler collection.
